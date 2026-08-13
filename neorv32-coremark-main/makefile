@@ -23,6 +23,9 @@ USER_FLAGS += -specs=nano.specs
 # Enable HW div/rem instructions (overrides common.mk's -mno-fdiv; CPU has M-ext divider)
 USER_FLAGS += -mdiv
 
+# Frame-pointer omission + link-time optimization (both safe, size/perf positive)
+USER_FLAGS += -fomit-frame-pointer -flto
+
 # Sources
 APP_SRC += $(wildcard coremark/*.c) core_portme.c
 APP_INC += -I coremark -I .
