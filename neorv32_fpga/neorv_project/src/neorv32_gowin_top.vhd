@@ -78,10 +78,10 @@ begin
     -- CPU 性能优化（A+B+C）--
     CPU_FAST_MUL_EN   => true,          -- 快速乘法器：32cyc → 2~4cyc（推断 DSP）
     CPU_FAST_SHIFT_EN => true,          -- 快速移位器：32cyc → 1cyc
-    ICACHE_EN         => true,          -- 指令缓存 16×64B = 1KB
-    ICACHE_NUM_BLOCKS => 16,
-    DCACHE_EN         => true,          -- 数据缓存 16×64B = 1KB
-    DCACHE_NUM_BLOCKS => 16,
+    ICACHE_EN         => true,          -- 指令缓存 64×64B = 4KB
+    ICACHE_NUM_BLOCKS => 64,
+    DCACHE_EN         => true,          -- 数据缓存 64×64B = 4KB
+    DCACHE_NUM_BLOCKS => 64,
     CACHE_BLOCK_SIZE  => 64,
     CACHE_BURSTS_EN   => true
     -- 其余 generics 使用默认值（全部禁用）--

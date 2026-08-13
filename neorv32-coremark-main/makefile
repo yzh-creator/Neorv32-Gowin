@@ -20,6 +20,9 @@ USER_FLAGS += -DMULTITHREAD=1
 # Use newlib-nano (stripped printf without %f/dtoa) to fit 32k IMEM
 USER_FLAGS += -specs=nano.specs
 
+# Enable HW div/rem instructions (overrides common.mk's -mno-fdiv; CPU has M-ext divider)
+USER_FLAGS += -mdiv
+
 # Sources
 APP_SRC += $(wildcard coremark/*.c) core_portme.c
 APP_INC += -I coremark -I .
