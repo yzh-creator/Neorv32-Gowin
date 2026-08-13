@@ -1,0 +1,33 @@
+// ==============================================================================
+// NEORV32 GW2A 顶层 (top.v, BOOT_MODE=2) 管脚约束
+// ==============================================================================
+// 使用说明:
+//   1. 在 Gowin EDA 中完成综合后, 打开 FloorPlanner
+//   2. 手动分配以下端口到实际板卡管脚
+//   3. FloorPlanner 保存后会自动写入本文件的 IO_LOC
+// ==============================================================================
+
+// ---- 时钟 ----
+IO_LOC  "clk_50m"  T7;
+IO_PORT "clk_50m"  IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
+
+// ---- 复位（低有效）----
+IO_LOC  "rstn"  P10;
+IO_PORT "rstn"  IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
+
+// ---- UART ----
+IO_LOC  "uart_txd"  N10;
+IO_PORT "uart_txd"  IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "uart_rxd"  P7;
+IO_PORT "uart_rxd"  IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
+
+// ---- LED[7:0]（与 neorv_project 点灯成功管脚一致）----
+IO_LOC  "led[0]"  C9;
+IO_PORT "led[0]"  IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "led[1]"  A9;
+IO_PORT "led[1]"  IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "led[2]"  D11;
+IO_PORT "led[2]"  IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC  "led[3]"  K14;
+IO_PORT "led[3]"  IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+// led[4..7] 未分配（板卡只有 4 个 LED）

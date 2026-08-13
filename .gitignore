@@ -1,0 +1,40 @@
+# =============================================================
+# Neorv32-Gowin 备份仓库 .gitignore
+# 策略:最小备份 —— 只提交源码与工程配置,排除工具链与一切生成物
+# =============================================================
+
+# RISC-V 工具链(1.8GB,远超 GitHub 100MB 单文件限制,可重新下载)
+tools/
+
+# Reasonix 会话数据 / 临时输出
+.reasonix/
+neorv32_test_output/
+
+# Gowin EDA 综合/布局布线产物(可重新生成)
+**/impl/
+**/temp/
+**/convert/
+*.pr
+*.p
+*.db
+*.fs
+*.vg
+*.timing_paths
+*.rpt.html
+*.rpt.txt
+*.rpt*
+
+# 构建产物
+**/build/
+*.elf
+*.bin
+*.coe
+*.mem
+*.mif
+*.asm
+*_image.vhd
+
+# 备份/中间文件
+*.bak
+*.bak2
+*.bak3
