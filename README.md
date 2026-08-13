@@ -83,7 +83,57 @@ mingw32-make hw        # 或双击 build_fw.bat
 
 ---
 
-## 4. CoreMark 性能调优记录
+## 4. BOOT_MODE_SELECT = 2:IMEM 直接启动(备用启动模式)
+
+当前工程顶层配置为 `BOOT_MODE_SELECT => 0`(UART bootloader)。NEORV32 还支持**模式 2:固件在综合时直接固化进 IMEM,上电即运行**,无需 bootloader、无需串口上传。
+
+### 4.1 三种启动模式(取自 `neorv32_top.vhd`)
+
+| 值 | 模式 | 启动地址 | 固件来源 |
+|---|---|---|---|
+| `0` | 内部 bootloader ROM | `base_io_bootrom` | UART 19200 上传 `.exe`(本工程当前用) |
+| `1` | 自定义启动地址 | `BOOT_ADDR_CUSTOM` | 外部(需自配) |
+| `2` | **IMEM 预初始化** | `IMEM_BASE`(0x00000000) | 综合时固化 `neorv32_imem_image.vhd` |
+
+### 4.2 工具链过程(6 步)
+
+```
+① 编译      riscv-none-elf-gcc -march=rv32imc_zicsr_zifencei ...
+            (main.c + HAL 库 + crt0.S)  →  main.elf
+② 转换      riscv-none-elf-objcopy -O binary main.elf → neorv32_raw_exe.bin
+③ 生成镜像  image_gen.exe -t vhd -i neorv32_raw_exe.bin → neorv32_imem_image.vhd
+            (固件字节 → VHDL 常量数组包 package neorv32_imem_image)
+④ 部署      copy neorv32_imem_image.vhd → neorv32/core/neorv32_imem_image.vhd
+⑤ 综合      Gowin EDA: Synthesize(IMEM BRAM 用该镜像初始化)→ Place&Route → Download .fs
+⑥ 运行      上电后 CPU 直接从 0x00000000 执行,无 bootloader
+```
+
+**对应工程脚本**:`src/Makefile` 的 `hw` 目标一键完成 ①–④(`image` + 复制到 core 目录);`build_fw.bat` / `build_fw.ps1` 即调用 `mingw32-make hw`。`build_fw.ps1` 内含 bin→VHDL 转换的参考实现(已改用官方 `image_gen.exe` 规避其 byte 位移溢出 bug)。
+
+### 4.3 涉及文件(工程内容)
+
+| 文件 | 作用 |
+|---|---|
+| `src/neorv32_gowin_top.vhd` | 将 `BOOT_MODE_SELECT => 0` 改为 `2` 即切换模式 |
+| `src/neorv32_imem_image.vhd` | 生成的固件镜像(可再生成,不入库) |
+| `neorv32/core/neorv32_imem_image.vhd` | ④ 的复制目标,综合时的输入 |
+| `src/Makefile`(`hw` 目标) | ①–④ 一键流程 |
+| `build_fw.bat` / `build_fw.ps1` | 一键构建入口 |
+
+### 4.4 与 BOOT_MODE=0 的对比
+
+| 维度 | `0`(bootloader) | `2`(IMEM 直启) |
+|---|---|---|
+| 更换固件 | 重传 `.exe`,秒级 | **必须重新综合+下载**,分钟级 |
+| 启动依赖 | bootloader ROM + UART | 无 |
+| 固件体积限制 | 镜像内容 < IMEM(32KB) | 同(综合时初始化) |
+| 适用场景 | 开发/调试迭代 | 固化发布/演示 |
+
+> 注意:模式 2 下固件仍受 IMEM 32KB 限制;CoreMark 适配(见 §5)同样适用。
+
+---
+
+## 5. CoreMark 性能调优记录
 
 **最终配置**(`neorv32_gowin_top.vhd` + `makefile`):
 
@@ -113,7 +163,7 @@ mingw32-make hw        # 或双击 build_fw.bat
 
 ---
 
-## 5. 克隆与子模块
+## 6. 克隆与子模块
 
 ```bash
 git clone --recurse-submodules https://github.com/yzh-creator/Neorv32-Gowin.git
@@ -128,7 +178,7 @@ git clone --recurse-submodules https://github.com/yzh-creator/Neorv32-Gowin.git
 
 ---
 
-## 6. 许可
+## 7. 许可
 
 - 本工程适配代码:Apache-2.0 / BSD-3-Clause(遵循上游)
 - NEORV32:BSD-3-Clause;CoreMark:Apache-2.0
