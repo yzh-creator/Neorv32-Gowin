@@ -3,8 +3,8 @@
 # CPU ISA / extensions (C enabled in neorv32_gowin_top.vhd)
 MARCH = rv32imc_zicsr_zifencei
 
-# Ooptimization
-EFFORT = -Os
+# Ooptimization (safe middle ground; size well within 32k IMEM)
+EFFORT = -O2
 
 # IMEM/DMEM layout
 USER_FLAGS += \
