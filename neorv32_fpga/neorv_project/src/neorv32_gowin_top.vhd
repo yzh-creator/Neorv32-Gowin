@@ -57,14 +57,14 @@ begin
     BOOT_MODE_SELECT => 0,
 
     -- RISC-V CPU 扩展 --
-    RISCV_ISA_C      => true,           -- 禁用压缩指令（参考 PicoRV32 经验，避免 Gowin 综合问题；稳定后可启用）
+    RISCV_ISA_C      => true,           -- 启用压缩指令（RV32IMC）
     RISCV_ISA_M      => true,            -- 硬件乘除法
     RISCV_ISA_Zicntr => true,            -- 基础计数器（cycle + instret）
 
 
     -- 内部存储器 --
     IMEM_EN          => true,
-    IMEM_SIZE        => 32 * 1024,       -- 16KB (VHDL常量数组，占1块pROM)
+    IMEM_SIZE        => 32 * 1024,       -- 32KB
     DMEM_EN          => true,
     DMEM_SIZE        => 8 * 1024,
 
@@ -73,7 +73,17 @@ begin
     IO_UART0_EN      => true,
     IO_UART0_RX_FIFO => 4,
     IO_UART0_TX_FIFO => 4,
-    IO_CLINT_EN      => true
+    IO_CLINT_EN      => true,
+
+    -- CPU 性能优化（A+B+C）--
+    CPU_FAST_MUL_EN   => true,          -- 快速乘法器：32cyc → 2~4cyc（推断 DSP）
+    CPU_FAST_SHIFT_EN => true,          -- 快速移位器：32cyc → 1cyc
+    ICACHE_EN         => true,          -- 指令缓存 16×64B = 1KB
+    ICACHE_NUM_BLOCKS => 16,
+    DCACHE_EN         => true,          -- 数据缓存 16×64B = 1KB
+    DCACHE_NUM_BLOCKS => 16,
+    CACHE_BLOCK_SIZE  => 64,
+    CACHE_BURSTS_EN   => true
     -- 其余 generics 使用默认值（全部禁用）--
   )
   port map (

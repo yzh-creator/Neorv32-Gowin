@@ -1,7 +1,7 @@
 # NEORV32 Coremark
 
-# CPU ISA / extensions
-MARCH = rv32im_zicsr_zifencei
+# CPU ISA / extensions (C enabled in neorv32_gowin_top.vhd)
+MARCH = rv32imc_zicsr_zifencei
 
 # Ooptimization
 EFFORT = -Os
