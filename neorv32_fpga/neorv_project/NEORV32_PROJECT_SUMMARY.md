@@ -3,7 +3,7 @@
 > 项目：将 NEORV32 RISC-V SoC 移植到 Gowin FPGA
 > 芯片：GW5AT-60B (GW5AT-LV60PG484AC1/I0) → 后切换 GW2A 系列
 > 工具：Gowin EDA V1.9.12 / xPack RISC-V GCC 15.2.0 / MinGW-w64
-> 日期：2026-07
+> 日期：2026-07（更新：2026-08 —— 完成 CoreMark 基准移植与性能调优，48 CM/s @50MHz）
 
 ---
 
@@ -46,14 +46,18 @@ neorv32_fpga/neorv_project/
 
 ```vhdl
 CLOCK_FREQUENCY => 50_000_000,    -- 50MHz
-BOOT_MODE_SELECT => 2,            -- 从预初始化IMEM启动
+BOOT_MODE_SELECT => 0,            -- 内部 bootloader（UART 19200 上传 .exe）；=2 为 IMEM 预初始化直启（备用，见 README §4）
 RISCV_ISA_M      => true,         -- 硬件乘除
-RISCV_ISA_C      => false,        -- 压缩指令（暂关）
-IMEM_SIZE        => 32KB / DMEM_SIZE => 8KB
-IO_GPIO_NUM      => 8,            -- LED
-IO_UART0_EN      => true,         -- 串口
-IO_CLINT_EN      => true          -- 定时器
+RISCV_ISA_C      => true,         -- 压缩指令（已启用，固件 -27%）
+RISCV_ISA_Zicntr => true,         -- 基础计数器（coremark mcycle 计时依赖）
+CPU_FAST_MUL_EN   => true,        -- 快速乘法器（DSP，32cyc → 2~4cyc）
+CPU_FAST_SHIFT_EN => true,        -- 快速移位器（32cyc → 1cyc）
+ICACHE_EN / DCACHE_EN => true,    -- I$/D$ 各 4KB（64 块 × 64B）
+IMEM_SIZE => 32KB / DMEM_SIZE => 8KB / heap 4KB
+IO_GPIO_NUM => 8 / IO_UART0_EN => true / IO_CLINT_EN => true
 ```
+
+> ⚠️ 旧文档此处写 `BOOT_MODE_SELECT => 2`、`RISCV_ISA_C => false` 已过时；以 `src/neorv32_gowin_top.vhd` 实际值为准（2026-08 综合版本）。
 
 ---
 
@@ -63,7 +67,7 @@ IO_CLINT_EN      => true          -- 定时器
 
 | 工具 | 路径 | 用途 |
 |------|------|------|
-| xPack RISC-V GCC 15.2.0 | `E:\Download\xpack-riscv-none-elf-gcc-15.2.0-1\bin` | 交叉编译 |
+| xPack RISC-V GCC 15.2.0 | `D:\neorv32\tools\xpack-riscv-none-elf-gcc-15.2.0-1\bin`（旧 build_fw.bat 写死 `E:\Download\...`，需同步） | 交叉编译 |
 | MinGW-w64 | `E:\mingw64\bin` | `mingw32-make` + 编译 `image_gen.exe` |
 | Gowin EDA 1.9.12 | 系统安装 | 综合/布局布线/下载 |
 
@@ -191,8 +195,43 @@ $word = ($b3 -shl 24) -bor ($b2 -shl 16) -bor ($b1 -shl 8) -bor $b0
 | UART0 串口输出 | ✅ 通过 | `neorv32_uart0_setup(115200,0)` + `neorv32_uart0_puts()` |
 | CLINT 定时器 | ✅ 正常 | `neorv32_aux_delay_ms(50000000, ms)` |
 | MTI 中断（GPIO+CLINT） | 🔄 测试中 | `neorv32_rte_handler_install(TRAP_CODE_MTI, ...)` |
-| 压缩指令 C 扩展 | ⏳ 未测 | `RISCV_ISA_C => true` + `MARCH=rv32imc_...` |
+| 压缩指令 C 扩展 | ✅ 已启用 | `RISCV_ISA_C => true` + `MARCH=rv32imc_zicsr_zifencei`，固件体积 -27%（2026-08 验证） |
 | SPI / PWM / TRNG 等 | ⏳ 未测 | 按需启用 |
+
+---
+
+### 4.1 CoreMark 基准测试与性能调优（2026-08 完成）
+
+**移植工程**：`neorv32-coremark-main/`（子模块：eembc/coremark @ 1f483d5、stnolting/neorv32 @ a34d516），适配 32KB IMEM。
+
+**关键适配**（否则固件超 32KB，bootloader 上传越界挂死）：
+
+| 问题 | 解决 |
+|---|---|
+| 原始固件 61,936B > 32KB IMEM | 链接参数改 ROM 32k / RAM 8k / heap 4k |
+| newlib 完整 `vfprintf` 无条件链接 **76KB dtoa** | `-specs=nano.specs`（固件 77.9KB → 22.7KB） |
+| `%f` 浮点打印 | `core_portme.h` `HAS_FLOAT=0`（走官方整数分支） |
+| 编译 ISA 须与顶层一致 | `MARCH=rv32imc_zicsr_zifencei`（C 扩展已启用） |
+
+**上传验证**：bootloader（19200,8N1）上传测试固件与 coremark 固件均通过；CRC 校验一致（`seedcrc=0xe9f5`、`crcfinal=0x4983`），成绩有效。
+
+**性能调优历程**（50MHz）：
+
+| 阶段 | CM/s | 手段 |
+|---|---|---|
+| 基线 | 27.4 | rv32im / -Os / 无缓存 / 软件除法 |
+| +27% | 34 | CPU_FAST_MUL/SHIFT + C 扩展 + 1KB 缓存 |
+| +9% | 37 | 缓存 1KB → 4KB（64×64B） |
+| **+30%** | **48** | **-O2**（替换 -Os，计算密集负载收益最大） |
+| ❌ 回退 | 47 | -flto / -fomit-frame-pointer（体积 -13.5% 但性能微降） |
+
+**最终成绩**：**48.2 CM/s @50MHz = 0.96 CM/MHz**；cycles/iter 1.035M（官方参考 1.057M，架构效率追平）。剩余差距仅为频率（50 vs 100MHz），进一步提升需提频。
+
+**关键结论 / 踩坑**：
+- NEORV32 除法器为迭代式（固定 3+32 周期），`-mdiv` 与软件除法性能相当（实测无提升，参考配置亦用 `-mno-fdiv`）
+- 缓存对片上 IMEM/DMEM（1 周期访问）收益有限，1KB 过小反可能负优化；4KB 为实测最优
+- LTO 会改变循环布局，本项目无收益
+- 最终编译参数：`-march=rv32imc_zicsr_zifencei -mabi=ilp32 -O2 -mdiv -specs=nano.specs`
 
 ---
 
@@ -251,8 +290,10 @@ int main() {
 ## 7. 遗留问题 / 注意事项
 
 1. **GW5AT vs GW2A 差异**：BRAM 写模式不同（见 3.3），移植时需按芯片选择
-2. **clean 目标**：Windows 下 `rm` 不可用，需手动删 build 目录
-3. **固件大小**：使用 `printf` 会显著增大固件（~3KB），小 ROM 下改用 `puts`
-4. **C 扩展**：启用后固件体积减 25%，但需 `MARCH=rv32imc_zicsr_zifencei` 同步修改
+2. **clean 目标**：git bash 下 `make clean` 可用（rm 存在）；cmd 下需 `rmdir /s /q build`
+3. **固件大小**：使用 `printf` 会显著增大固件（~3KB），小 ROM 下改用 `puts`；CoreMark 用 `-specs=nano.specs` 已解决
+4. **C 扩展**：已启用验证（2026-08），`MARCH=rv32imc_zicsr_zifencei` 已同步
 5. **OCD/JTAG 调试**：暂未启用（需额外管脚+OpenOCD）
 6. **Verilog 退路**：如果 Gowin VHDL 综合遇到死结，可用 `rtl/verilog/` 的 GHDL 转换方案
+7. **工具链路径**（2026-08）：RISC-V GCC 实际位于 `D:\neorv32\tools\`，`build_fw.bat` 写死的 `E:\Download\` 路径需同步修改
+8. **版本备份**（2026-08）：工程已备份至 `github.com/yzh-creator/Neorv32-Gowin`（最小策略：排除 tools/1.8GB 工具链与 impl/ 综合产物；子模块保留 gitlink 引用）
